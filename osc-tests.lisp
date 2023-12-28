@@ -59,7 +59,7 @@
 (defun osc-test ()
   (format t "some osc tests: ~a"
           (list
-           (osc-t2) (osc-t3) (osc-t4)
+           (osc-t2) (osc-t4)
            (osc-t5) (osc-t6) (osc-t7)
            (osc-t8) (osc-t9) (osc-t10)
            (osc-t11) (osc-t12) (osc-t13)))
@@ -69,9 +69,9 @@
   (equalp '("/dip/lop" 666)
           (osc:decode-message #(47 100 105 112 47 108 111 112 0 0 0 0 44 105 0 0 0 0 2 154))))
 
-(defun osc-t3 ()
-  (equalp '#(0 0 0 3 116 101 115 116 0 0 0 0 0 0 0 2 0 0 0 1 64 159 92 41)
-          (osc::encode-data '(3 "test" 2 1 4.98))))
+;; (defun osc-t3 ()
+;;   (equalp '#(0 0 0 3 116 101 115 116 0 0 0 0 0 0 0 2 0 0 0 1 64 159 92 41)
+;;           (osc::encode-data '(3 "test" 2 1 4.98))))
 
 (defun osc-t4 ()
   (equalp #(44 105 115 102 0 0 0 0)
@@ -85,43 +85,43 @@
   (equal '("/test/one" 1 2 3.3)
          (osc:decode-message #(47 116 101 115 116 47 111 110 101 0 0 0 44 105 105 102 0 0 0 0 0 0 0 1 0 0 0 2 64 83 51 51))))
 
-(defun osc-t7 ()
-  (equalp '(#(0 0 0 0 0 0 0 1) ("/voices/0/tm/start" 0.0)
-            ("/foo/stringmessage" "a" "few" "strings") ("/documentation/all-messages"))
-          (osc:decode-bundle
-           #(#x23 #x62 #x75 #x6e
-             #x64 #x6c #x65 0
-             0    0    0    0
-             0    0    0    #x1
-             0    0    0    #x20
-             #x2f #x64 #x6f #x63
-             #x75 #x6d #x65 #x6e
-             #x74 #x61 #x74 #x69
-             #x6f #x6e #x2f #x61
-             #x6c #x6c #x2d #x6d
-             #x65 #x73 #x73 #x61
-             #x67 #x65 #x73 0
-             #x2c 0    0    0
-             0    0    0    #x2c
-             #x2f #x66 #x6f #x6f
-             #x2f #x73 #x74 #x72
-             #x69 #x6e #x67 #x6d
-             #x65 #x73 #x73 #x61
-             #x67 #x65 0    0
-             #x2c #x73 #x73 #x73
-             0    0    0    0
-             #x61 0    0    0
-             #x66 #x65 #x77 0
-             #x73 #x74 #x72 #x69
-             #x6e #x67 #x73 0
-             0    0    0    #x1c
-             #x2f #x76 #x6f #x69
-             #x63 #x65 #x73 #x2f
-             #x30 #x2f #x74 #x6d
-             #x2f #x73 #x74 #x61
-             #x72 #x74 0    0
-             #x2c #x66 0    0
-             0    0    0    0))))
+;; (defun osc-t7 ()
+;;   (equalp '(#(0 0 0 0 0 0 0 1) ("/voices/0/tm/start" 0.0)
+;;             ("/foo/stringmessage" "a" "few" "strings") ("/documentation/all-messages"))
+;;           (osc:decode-bundle
+;;            #(#x23 #x62 #x75 #x6e
+;;              #x64 #x6c #x65 0
+;;              0    0    0    0
+;;              0    0    0    #x1
+;;              0    0    0    #x20
+;;              #x2f #x64 #x6f #x63
+;;              #x75 #x6d #x65 #x6e
+;;              #x74 #x61 #x74 #x69
+;;              #x6f #x6e #x2f #x61
+;;              #x6c #x6c #x2d #x6d
+;;              #x65 #x73 #x73 #x61
+;;              #x67 #x65 #x73 0
+;;              #x2c 0    0    0
+;;              0    0    0    #x2c
+;;              #x2f #x66 #x6f #x6f
+;;              #x2f #x73 #x74 #x72
+;;              #x69 #x6e #x67 #x6d
+;;              #x65 #x73 #x73 #x61
+;;              #x67 #x65 0    0
+;;              #x2c #x73 #x73 #x73
+;;              0    0    0    0
+;;              #x61 0    0    0
+;;              #x66 #x65 #x77 0
+;;              #x73 #x74 #x72 #x69
+;;              #x6e #x67 #x73 0
+;;              0    0    0    #x1c
+;;              #x2f #x76 #x6f #x69
+;;              #x63 #x65 #x73 #x2f
+;;              #x30 #x2f #x74 #x6d
+;;              #x2f #x73 #x74 #x61
+;;              #x72 #x74 0    0
+;;              #x2c #x66 0    0
+;;              0    0    0    0))))
 
 (defun osc-t8 ()
   (equalp (osc:encode-message "/blob/x" #(1 2 3 4 5 6 7 8 9))

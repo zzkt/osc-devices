@@ -1,8 +1,11 @@
 ;; -*- mode: lisp -*-
 
-(in-package #:cl-user)
+(defpackage osc-system
+  (:use :common-lisp :asdf))
 
-(asdf:defsystem osc
+(in-package :osc-system)
+
+(defsystem "osc"
   :name "osc"
   :author "nik gaffney <nik@fo.am>"
   :licence "GPL v3"
@@ -11,14 +14,13 @@
   :depends-on (:usocket)
   :components
   ((:file "osc" :depends-on ("osc-data" "osc-time"))
-   (:file "osc-data" :depends-on ("package"))
+   (:file "osc-package")
+   (:file "osc-data" :depends-on ("osc-package"))
+   (:file "osc-time" :depends-on ("osc-package"))
    (:file "osc-dispatch" :depends-on ("osc"))
-   (:file "osc-time" :depends-on ("package"))
    (:file "osc-tests" :depends-on ("osc"))
-   (:file "package")
    (:module "devices"
-    :if-feature :sbcl
-    :depends-on ("package" "osc-data")
+    :depends-on ("osc-package" "osc-data")
     :components
             ((:file "socket-functions")
              (:file "device")

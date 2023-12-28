@@ -2,7 +2,7 @@
 ;;;
 ;;; an implementation of the OSC (Open Sound Control) protocol
 ;;;
-;;; copyright (C) 2004 FoAM vzw.
+;;; copyright (C) 2004, 2023 FoAM oü
 ;;;
 ;;; You are granted the rights to distribute and use this software
 ;;; under the terms of the Lisp Lesser GNU Public License, known
@@ -13,7 +13,7 @@
 ;;;
 ;;; authors
 ;;;
-;;;  nik gaffney <nik@f0.am>
+;;;  nik gaffney <nik@fo.am>
 ;;;
 ;;; requirements
 ;;;
@@ -23,36 +23,29 @@
 ;;; commentary
 ;;;
 ;;;  this is a partial implementation of the OSC protocol which is used
-;;;  for communication mostly amongst music programs and their attatched
+;;;  for communication mostly amongst music programs and their attached
 ;;;  musicians. eg. sc3, max/pd, reaktor/traktorska etc+. more details
 ;;;  of the protocol can be found at the open sound control pages -=>
 ;;;                     http://www.cnmat.berkeley.edu/OpenSoundControl/
 ;;;
-;;;   - doesnt send nested bundles or timetags later than 'now'
+;;;
+;;; known BUGS/Issues
+;;;   - encoding an unbound :symbol (or without symbol-value) will cause an error
 ;;;   - malformed input -> exception
-;;;   - int32 en/de-coding based on code (c) Walter C. Pelissero
 ;;;   - unknown types are sent as 'blobs' which may or may not be an issue
-;;;
-;;;  see the README file for more details...
-;;;
-;;; known BUGS
-;;;   - encoding a :symbol which is unbound, or has no symbol-value will cause
-;;;     an error
-;;;
+;;;   - see the README file for more details...
 
 (in-package :osc)
-
 ;;(declaim (optimize (speed 3) (safety 1) (debug 3)))
+
+(defparameter *debug* 0
+  "Set debug verbosity for core library functions. Currently levels are 0-3.")
 
 ;;;;;; ;    ;;    ;     ; ;     ; ; ;         ;
 ;;
 ;;   eNcoding OSC messages
 ;;
 ;;;; ;;  ;;   ; ; ;;           ;      ;  ;                  ;
-
-(defparameter *debug* 0
-  "Set debug verbosity for core library functions. Currently levels
-  are 0-3.")
 
 (defgeneric encode-osc-data (data))
 
@@ -74,6 +67,14 @@
              (encode-timetag :now))
          (apply #'cat (mapcar #'encode-bundle-elt elements)))))
 
+;; for backwards compatibility
+(defun encode-message (data message)
+  (encode-osc-data data message))
+
+(defun encode-bundle (data bundle)
+  (encode-osc-data data bundle))
+
+
 (defgeneric encode-bundle-elt (data))
 
 (defmethod encode-bundle-elt ((data message))
@@ -84,16 +85,14 @@
   (let ((bytes (encode-osc-data data)))
     (cat (encode-int32 (length bytes)) bytes)))
 
-;; Auxilary functions
-
 (defun encode-address (address)
   (cat (map 'vector #'char-code address)
        (string-padding address)))
 
 (defun encode-typetags (data)
-  "creates a typetag string suitable for the given data.
-  valid typetags according to the osc spec are ,i ,f ,s and ,b
-  non-std extensions include ,{h|t|d|S|c|r|m|T|F|N|I|[|]}
+  "Create a typetag string suitable for the given data.
+  Valid typetags according to the osc spec are ,i ,f ,s and ,b
+  other extensions include ,{h|t|d|S|c|r|m|T|F|N|I|[|]}
                              see the spec for more details. ..
 
   NOTE: currently handles the following tags
@@ -105,14 +104,15 @@
   and considers non int/float/string data to be a blob."
 
   (let ((lump (make-array 0 :adjustable t
-                          :fill-pointer t)))
+                            :fill-pointer t)))
     (macrolet ((write-to-vector (char)
-                 `(vector-push-extend
-                   (char-code ,char) lump)))
+                 `(vector-push-extend (char-code ,char) lump)))
       (write-to-vector #\,)
       (dolist (x data)
         (typecase x
-          (integer (if (>= x 4294967296) (write-to-vector #\h) (write-to-vector #\i)))
+          (integer (if (>= x 4294967296)
+                       (write-to-vector #\h)
+                       (write-to-vector #\i)))
           (float (write-to-vector #\f))
           (simple-string (write-to-vector #\s))
           (keyword (write-to-vector #\s))
@@ -121,13 +121,15 @@
          (pad (padding-length (length lump))))))
 
 (defun encode-args (args)
-  "encodes args in a format suitable for an OSC message"
+  "encodes ARGS in a format suitable for an OSC message"
   (let ((lump (make-array 0 :adjustable t :fill-pointer t)))
     (macrolet ((enc (f)
                  `(setf lump (cat lump (,f x)))))
       (dolist (x args)
         (typecase x
-          (integer (if (>= x 4294967296) (enc encode-int64) (enc encode-int32)))
+          (integer (if (>= x 4294967296)
+                       (enc encode-int64)
+                       (enc encode-int32)))
           (float (enc encode-float32))
           (simple-string (enc encode-string))
           (t (enc encode-blob))))
@@ -148,9 +150,7 @@ index the beginning of a bundle in the buffer."
 (defun get-timetag (buffer &optional (start 0))
   "Bytes 8-15 are the bundle timestamp. The start argument should
 index the beginning of a bundle in the buffer."
-  (decode-timetag (subseq buffer
-                          (+ 8 start)
-                          (+ 16 start))))
+  (decode-timetag (subseq buffer (+ 8 start) (+ 16 start))))
 
 (defun get-bundle-element-length (buffer &optional (start 16))
   "Bytes 16-19 are the size of the bundle element. The start argument
@@ -159,10 +159,9 @@ pair in the buffer."
   (decode-int32 (subseq buffer start (+ 4 start))))
 
 (defun get-bundle-element (buffer &optional (start 16))
-  "Bytes 20 upto to the length of the content (defined by the
+  "Bytes 20 to the length of the content (as defined by the
 preceding 4 bytes) are the content of the bundle. The start argument
-should index the beginning of the bundle element (length, content)
-pair in the buffer."
+should index the beginning of the bundle element pair in the buffer."
   (let ((length (get-bundle-element-length buffer start)))
     (subseq buffer
             (+ 4 start)
@@ -182,14 +181,13 @@ pair in the buffer."
           (length buffer)))
 
 (defun decode-bundle (buffer &key (start 0) end)
-  "Decodes an osc bundle/message into a bundle/message object. Bundles
+  "Decode an osc bundle/message into a bundle/message object. Bundles
   comprise an osc-timetag and a list of elements, which may be
   messages or bundles recursively. An optional end argument can be
   supplied (i.e. the length value returned by socket-receive, or the
   element length in the case of nested bundles), otherwise the entire
-  buffer is decoded - in which case, if you are reusing buffers, you
-  are responsible for ensuring that the buffer does not contain stale
-  data."
+  buffer is decoded. If you are reusing buffers, you are responsible
+  for ensuring that the buffer does not contain stale data."
   (unless end
     (setf end (- (length buffer) start)))
   (when (>= *debug* 2)
@@ -204,37 +202,35 @@ pair in the buffer."
                                     buffer start)
               do (incf start 4)            ; length bytes
               when (>= *debug* 1)
-              do (format t "~&Bundle element length: ~a~%" element-length)
+                do (format t "~&Bundle element length: ~a~%" element-length)
               collect (decode-bundle buffer
                                      :start start
                                      :end (+ start element-length))
-              into elements
+                into elements
               do (incf start (+ element-length))
               finally (return
                         (values (make-bundle timetag elements)
                                 timetag))))
       ;; Message
       (let ((message
-             (decode-message
-              (subseq buffer start (+ start end)))))
+              (decode-message
+               (subseq buffer start (+ start end)))))
         (make-message (car message) (cdr message)))))
 
 (defun decode-message (message)
-  "reduces an osc message to an (address . data) pair. .."
+  "Decode an osc message to an (address . data) pair."
   (declare (type (vector *) message))
   (let ((x (position (char-code #\,) message)))
     (if (eq x nil)
-        (format t "message contains no data.. ")
+        (format t "Message contains no data.. ")
         (cons (decode-address (subseq message 0 x))
               (decode-taged-data (subseq message x))))))
 
 (defun decode-address (address)
-  (coerce (map 'vector #'code-char
-               (delete 0 address))
-          'string))
+  (coerce (map 'vector #'code-char (delete 0 address)) 'string))
 
 (defun decode-taged-data (data)
-  "decodes data encoded with typetags...
+  "Decode data encoded with typetags.
   NOTE: currently handles the following tags
    i => #(105) => int32
    f => #(102) => float
@@ -276,7 +272,7 @@ pair in the buffer."
                     (push (decode-blob (subseq acc 0 end))
                           result)
                     (setf acc (subseq acc end))))
-                 (t (error "unrecognised typetag ~a" x))))
+                 (t (error "Unrecognised typetag ~a" x))))
            tags)
       (nreverse result))))
 
@@ -308,7 +304,7 @@ representation used by Internet NTP timestamps'. For an
 with the current time use (encode-timetag :time)."
   (cond
     ((equalp timetag :now)
-     ;; a 1 bit timetag will be interpreted as 'immediately'
+     ;; the 1 bit timetag will be interpreted as 'immediately'
      #(0 0 0 0 0 0 0 1))
     ((equalp timetag :time)
      ;; encode timetag with current real time
@@ -319,10 +315,9 @@ with the current time use (encode-timetag :time)."
     (t (error "Argument given is not one of :now, :time, or timetagp."))))
 
 (defun decode-timetag (timetag)
-  "Return a 64 bit timetag from a vector of 8 bytes in network byte
-  order."
+  "Return a 64 bit timetag from a vector of 8 bytes in network byte order."
   (if (equalp timetag #(0 0 0 0 0 0 0 1))
-      1 ; A timetag of 1 is defined as immediately.
+      1 ;; A timetag of 1 is defined as immediately.
       (decode-uint64 timetag)))
 
 ;;;;; ; ; ;;    ;; ; ;
@@ -335,7 +330,7 @@ with the current time use (encode-timetag :time)."
 ;; particulaly portable, but 'works for now'.
 
 (defun encode-float32 (f)
-  "encode an ieee754 float as a 4 byte vector. currently sbcl/cmucl specific"
+  "Encode an ieee754 float as a 4 byte vector."
   #+sbcl (encode-int32 (sb-kernel:single-float-bits f))
   #+cmucl (encode-int32 (kernel:single-float-bits f))
   #+openmcl (encode-int32 (CCL::SINGLE-FLOAT-BITS f))
@@ -344,7 +339,7 @@ with the current time use (encode-timetag :time)."
   #-(or sbcl cmucl openmcl allegro) (error "Can't encode floats using this implementation."))
 
 (defun decode-float32 (s)
-  "ieee754 float from a vector of 4 bytes in network byte order"
+  "Decode an ieee754 float from a vector of 4 bytes in network byte order."
   #+sbcl (sb-kernel:make-single-float (decode-int32 s))
   #+cmucl (kernel:make-single-float (decode-int32 s))
   #+openmcl (CCL::HOST-SINGLE-FLOAT-FROM-UNSIGNED-BYTE-32 (decode-uint32 s))
@@ -383,10 +378,10 @@ with the current time use (encode-timetag :time)."
            (list docstring))
        (let ((,buf (make-array ,num-of-octets :element-type '(unsigned-byte 8))))
          ,@(loop
-                 for n below num-of-octets
-                 collect `(setf (aref ,buf ,n)
-                                (ldb (byte 8 (* 8 (- (1- ,num-of-octets) ,n)))
-                                     ,int)))
+             for n below num-of-octets
+             collect `(setf (aref ,buf ,n)
+                            (ldb (byte 8 (* 8 (- (1- ,num-of-octets) ,n)))
+                                 ,int)))
          ,buf))))
 
 (defint-encoder 4 "Convert an integer into a sequence of 4 bytes in network byte order (32 bit).")
@@ -409,12 +404,12 @@ with the current time use (encode-timetag :time)."
 ;; osc-strings are unsigned bytes, padded to a 4 byte boundary
 
 (defun encode-string (string)
-  "encodes a string as a vector of character-codes, padded to 4 byte boundary"
+  "Encode a string as a vector of character-codes, padded to 4 byte boundary."
   (cat (map 'vector #'char-code string)
        (string-padding string)))
 
 (defun decode-string (data)
-  "converts a binary vector to a string and removes trailing #\nul characters"
+  "Convert a binary vector to a string and removes trailing #\nul characters."
   (string-trim '(#\nul) (coerce (map 'vector #'code-char data) 'string)))
 
 
@@ -422,13 +417,13 @@ with the current time use (encode-timetag :time)."
 ;; osc-padded to a 4 byte boundary.
 
 (defun encode-blob (blob)
-  "encodes a blob from a given vector"
+  "Encode a blob from a given vector."
   (let ((bl (length blob)))
     (cat (encode-int32 bl) blob
          (pad (padding-length bl)))))
 
 (defun decode-blob (blob)
-  "decode a blob as a vector of unsigned bytes."
+  "Decode a blob as a vector of unsigned bytes."
   (let ((size (decode-int32
                (subseq blob 0 4))))
     (subseq blob 4 (+ 4 size))))
@@ -439,22 +434,22 @@ with the current time use (encode-timetag :time)."
   (apply #'concatenate '(vector (unsigned-byte 8)) catatac))
 
 (defun padding-length (s)
-  "returns the length of padding required for a given length of string"
+  "Return the length of padding required for a given length of string."
   (declare (type fixnum s))
   (- 4 (mod s 4)))
 
 (defun padded-length (s)
-  "returns the length of an osc-string made from a given length of string"
+  "Return the length of an osc-string made from a given length of string."
   (declare (type fixnum s))
   (+ s (- 4 (mod s 4))))
 
 (defun string-padding (string)
-  "returns the padding required for a given osc string"
+  "Return the padding required for a given osc string."
   (declare (type simple-string string))
   (pad (padding-length (length string))))
 
 (defun pad (n)
-  "make a sequence of the required number of #\Nul characters"
+  "Make a sequence of the required number of #\Nul characters."
   (declare (type fixnum n))
   (make-array n :initial-element 0 :fill-pointer n))
 
